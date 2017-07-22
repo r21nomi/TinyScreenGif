@@ -14,63 +14,77 @@
 #include <SD.h>
 #include <Wire.h>
 #include <SPI.h>
+#include <STBLE.h>
+
+#if defined (ARDUINO_ARCH_AVR)
+#define SerialMonitorInterface Serial
+#elif defined(ARDUINO_ARCH_SAMD)
+#define SerialMonitorInterface SerialUSB
+#endif
 
 TinyScreen display = TinyScreen(TinyScreenPlus);
 
+byte buffer[256];
+byte leftButton=(1<<1);
+byte rightButton=(1<<0);
+
 //SdFat sd;
 File dataFile;
-//SdFile fileInfo;
+bool canAnimate = true;
 
 void setup(void) {
   Wire.begin();
-  display.begin();
-  Serial.begin(9600);
+  SerialMonitorInterface.begin(9600);
+  
   if (!SD.begin(10)) {
-    Serial.println(F("Card failed"));
+    SerialMonitorInterface.print(F("Card failed"));
     while(1);
-  }
+  } 
+  display.begin();
+  display.setFlip(1);
+  display.setBrightness(6);
+  display.clearWindow(0, 0, 96, 64);
+  display.setFont(liberationSans_8ptFontInfo);
 }
 
 void loop() {
-//  sd.vwd()->rewind();
-  dataFile.rewindDirectory();
-  while(dataFile.openNextFile()){
-    Serial.println("hoge");
-    char filename[12];
-    if(!dataFile.isDirectory()){
-      strcpy(filename, dataFile.name());
-//      int len=strlen(filename)-4;
-      if(strcmp(filename,"image_5.tsv"))
-        playVideo(filename,0);
-    }
-    dataFile.close();
+  if (canAnimate) {
+    playVideo("image_5.tsv",0);
+  }
+
+  if (display.getButtons()&leftButton) {
+    SerialMonitorInterface.println("left button");
+    canAnimate = true;   
   }
 }
 
-
-void playVideo(char * filename,char skip){
-  Serial.println(filename);
-  uint8_t buffer[512];
-  dataFile = SD.open(filename);
-  if(!dataFile) {
-    Serial.println(F("Error opening file!"));
-    delay(100);
+void playVideo(char * filename, char skip) {
+  SerialMonitorInterface.print("playVideo : ");
+  SerialMonitorInterface.println(filename);
+  
+  dataFile = SD.open(filename); 
+  if (!dataFile) {
+    SerialMonitorInterface.println("Error opening file!");
     return;
   }
+  
   dataFile.seek(0);
-  unsigned char t=0;
-  while(dataFile.available()) {
+  unsigned char t = 0;
+  
+  while (dataFile.available()) {
     display.goTo(0, 0);
-    //if(t++&skip)dataFile.seek(dataFile.position()+(96*64));//switch to SdFat
-    unsigned long timer=millis();
-    for(int i=0; i<12 && dataFile.available(); i++){
-      dataFile.read(buffer,512);
+    if (t++&skip) dataFile.seek(dataFile.position() + (96 * 64));
+    for (int i = 0; i < 24 && dataFile.available(); i++) {
+      dataFile.read(buffer, 256);
       display.startData();
-      display.writeBuffer(buffer,512);
+      display.writeBuffer(buffer, 256);
       display.endTransfer();
+      
+      if (display.getButtons()&rightButton) {
+        SerialMonitorInterface.println("right button");
+        canAnimate = false;
+      }
     }
-    timer=millis()-timer;
-    Serial.println(timer);
   }
   dataFile.close();
 }

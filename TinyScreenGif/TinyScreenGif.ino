@@ -2,6 +2,13 @@
 #include <SD.h>
 #include <SPI.h>
 #include <Wire.h>
+#include <STBLE.h>
+
+#if defined (ARDUINO_ARCH_AVR)
+#define SerialMonitorInterface Serial
+#elif defined(ARDUINO_ARCH_SAMD)
+#define SerialMonitorInterface SerialUSB
+#endif
 
 TinyScreen display = TinyScreen(TinyScreenPlus);
 
@@ -25,12 +32,13 @@ byte rightButton=(1<<0);
 
 void setup(void) {
   Wire.begin();
-  Serial.begin(9600);
+  SerialMonitorInterface.begin(9600);
   pinMode(10, OUTPUT);
   if (!SD.begin(10)) {
-    Serial.println(F("Card failed, or not present"));
+    SerialMonitorInterface.println(F("Card failed, or not present"));
     while(1);
   }
+    SerialMonitorInterface.println("success");
   display.begin();
   display.setFlip(1);
   display.setBrightness(6);
@@ -45,8 +53,8 @@ void setup(void) {
 void loop(){
   int y = 0;
   if (lastFirstFile != firstFile) {
-    //Serial.print("calling displayFiles at file ");
-    //Serial.println(firstFile);
+    SerialMonitorInterface.println("calling displayFiles at file ");
+    //SerialMonitorInterface.println(firstFile);
     displayFiles(firstFile);
     lastFirstFile=firstFile;
   }
@@ -54,7 +62,7 @@ void loop(){
   drawRightArrow(0, 2 + (pixelsPerLine * selectionLine));
   delay(200);
   if (display.getButtons()&upButton) {
-    Serial.println("up button");
+    SerialMonitorInterface.println("up button");
     if (selectionLine > 0)
       selectionLine--;
     else if (firstFile > 0)
@@ -62,7 +70,7 @@ void loop(){
     return;
   }
   if (display.getButtons()&downButton) {
-    Serial.println("down button");
+    SerialMonitorInterface.println("down button");
     if (selectionLine < maxLines - 1 && selectionLine < amtFiles - 1)
       selectionLine++;
     else if (firstFile < amtFiles - maxLines)
@@ -70,7 +78,7 @@ void loop(){
     return;
   }
   if (display.getButtons()&rightButton) {
-    Serial.println("right button");
+    SerialMonitorInterface.println("right button");
     root.rewindDirectory();
     for (int i = 0; i < firstFile + selectionLine; i++) {
       file = root.openNextFile();
@@ -94,7 +102,7 @@ void loop(){
       }
       strcpy(fullName+strlen(fullName), file.name());
       file.close();
-      Serial.println(fullName);
+      SerialMonitorInterface.println(fullName);
       while (display.getButtons()&leftButton);
       while (!(display.getButtons()&leftButton)){
         playVideo(fullName, 0);
@@ -105,7 +113,7 @@ void loop(){
     return;
   }
   if (display.getButtons()&leftButton) {
-    Serial.println("left button");
+    SerialMonitorInterface.println("left button");
     if (directoryLevel < 1) return;
     int i = 0, j = 0;
     while (i < 30 && j < directoryLevel)
@@ -128,9 +136,9 @@ void setDirectory(char * location){
     file = root.openNextFile();
   }
   file.close();
-  //Serial.print(amtFiles);
-  //Serial.print(" files at ");
-  //Serial.println(location);
+  //SerialMonitorInterface.print(amtFiles);
+  //SerialMonitorInterface.print(" files at ");
+  //SerialMonitorInterface.println(location);
   filesDisplayed = 0;
   selectionLine = 0;
   firstFile = 0;
@@ -178,9 +186,11 @@ void drawUpArrow(int x, int y) {
 }
 
 void playVideo(char * filename, char skip) {
+  SerialMonitorInterface.println("playVideo");
+  
   file = SD.open(filename); 
   if (!file) {
-    Serial.println("Error opening file!");
+    SerialMonitorInterface.println("Error opening file!");
     return;
   }
   file.seek(0);
